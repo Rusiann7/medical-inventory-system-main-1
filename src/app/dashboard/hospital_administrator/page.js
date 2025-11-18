@@ -1,9 +1,29 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { GoogleGenAI } from "@google/genai";
 
 const GEMINI_API_KEY = "AIzaSyAZ4TMBO6PM1VMuJ7OT638zQp93aRjL37A";
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+
+const generateDescription = async () => {
+  if (!formData.name.trim() || formData.name.length < 2) return;
+
+  setIsGenerating(true);
+  try {
+    const description = await generateAIDescription(formData.name);
+    setFormData((prev) => ({ ...prev, description }));
+  } catch (error) {
+    console.error("Failed to generate description:", error);
+    // Fallback to basic description
+    setFormData((prev) => ({
+      ...prev,
+      description: `Medical ${formData.name.toLowerCase()} for healthcare use`,
+    }));
+  } finally {
+    setIsGenerating(false);
+  }
+};
 
 // Force dynamic rendering to prevent prerendering issues
 export const dynamic = "force-dynamic";
@@ -68,29 +88,97 @@ export default function HospitalAdministratorDashboard() {
 
   const [isGenerating, setIsGenerating] = useState(false);
 
+  const generateAIDescription = async (itemName) => {
+    try {
+      const prompt = `Analyze this medical item name and provide: 
+    1. A concise professional description (under 150 characters)
+    2. The most appropriate category from: medication, equipment, supplies, diagnostic, surgical, protective, disposable
+
+    Item: "${itemName}"
+    
+    Respond in this exact format:
+    DESCRIPTION: [description here]
+    CATEGORY: [category here]`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+
+      const responseText = response.text.trim();
+
+      // Parse the response to extract description and category
+      const descriptionMatch = responseText.match(/DESCRIPTION:\s*(.+)/i);
+      const categoryMatch = responseText.match(/CATEGORY:\s*(.+)/i);
+
+      let description = `Medical ${itemName.toLowerCase()} for healthcare use`;
+      let category = "supplies"; // default category
+
+      if (descriptionMatch) {
+        description = descriptionMatch[1].trim();
+      }
+
+      if (categoryMatch) {
+        const detectedCategory = categoryMatch[1].trim().toLowerCase();
+        // Validate the category is one of our options
+        const validCategories = [
+          "medication",
+          "equipment",
+          "supplies",
+          "diagnostic",
+          "surgical",
+          "protective",
+          "disposable",
+        ];
+        category = validCategories.includes(detectedCategory)
+          ? detectedCategory
+          : "supplies";
+      }
+
+      // Update both description and category in the form
+      setFormData((prev) => ({
+        ...prev,
+        description,
+        category,
+      }));
+
+      return description;
+    } catch (error) {
+      console.error("AI description generation failed:", error);
+      throw error;
+    }
+  };
+
   // Load items from database
   useEffect(() => {
     loadItems();
   }, []);
 
-  const generateDescription = async () => {
-    if (!formData.name.trim() || formData.name.length < 2) return;
+  // Add this useEffect for auto-generating descriptions and categories
+  useEffect(() => {
+    const generateDescriptionAndCategory = async () => {
+      if (!formData.name.trim() || formData.name.length < 2) return;
 
-    setIsGenerating(true);
-    try {
-      const description = await generateAIDescription(formData.name);
-      setFormData((prev) => ({ ...prev, description }));
-    } catch (error) {
-      console.error("Failed to generate description:", error);
-      // Fallback to basic description
-      setFormData((prev) => ({
-        ...prev,
-        description: `Medical ${formData.name.toLowerCase()} for healthcare use`,
-      }));
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+      setIsGenerating(true);
+      try {
+        await generateAIDescription(formData.name);
+      } catch (error) {
+        console.error("Failed to generate description and category:", error);
+        // Fallback to basic description and default category
+        setFormData((prev) => ({
+          ...prev,
+          description: `Medical ${formData.name.toLowerCase()} for healthcare use`,
+          category: "supplies",
+        }));
+      } finally {
+        setIsGenerating(false);
+      }
+    };
+
+    // Add debounce to avoid too many API calls
+    const timeoutId = setTimeout(generateDescriptionAndCategory, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [formData.name]);
 
   const loadItems = async () => {
     const { data, error } = await inventoryService.getItems();
@@ -407,15 +495,29 @@ export default function HospitalAdministratorDashboard() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="description">Description</Label>
+                  {isGenerating && (
+                    <span className="text-xs text-blue-500">
+                      AI generating...
+                    </span>
+                  )}
+                </div>
                 <Input
                   id="description"
                   value={formData.description}
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
                   }
-                  placeholder="Item description"
+                  placeholder={
+                    isGenerating
+                      ? "Generating description..."
+                      : "Auto-generated description"
+                  }
                 />
+                <p className="text-xs text-gray-500">
+                  Description auto-generates based on item name
+                </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -443,15 +545,28 @@ export default function HospitalAdministratorDashboard() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <Input
-                  id="category"
-                  value={formData.category}
-                  onChange={(e) =>
-                    setFormData({ ...formData, category: e.target.value })
-                  }
-                  placeholder="medication, equipment, supplies"
-                />
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="category">Category</Label>
+                  {isGenerating && (
+                    <span className="text-xs text-blue-500">
+                      AI detecting...
+                    </span>
+                  )}
+                </div>
+                <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  {formData.category ? (
+                    <span className="capitalize">{formData.category}</span>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      {isGenerating
+                        ? "Detecting category..."
+                        : "Category will auto-detect"}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500">
+                  Category automatically detected based on item name
+                </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -644,14 +759,13 @@ export default function HospitalAdministratorDashboard() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-category">Category</Label>
-              <Input
-                id="edit-category"
-                value={formData.category}
-                onChange={(e) =>
-                  setFormData({ ...formData, category: e.target.value })
-                }
-                placeholder="medication, equipment, supplies"
-              />
+              <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm">
+                {formData.category ? (
+                  <span className="capitalize">{formData.category}</span>
+                ) : (
+                  <span className="text-muted-foreground">No category set</span>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
