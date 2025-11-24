@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { GoogleGenAI } from "@google/genai";
 
-const GEMINI_API_KEY = "AIzaSyAZ4TMBO6PM1VMuJ7OT638zQp93aRjL37A";
+const GEMINI_API_KEY = process.env.GEMINI_KEY;
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 const generateDescription = async () => {
