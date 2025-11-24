@@ -181,6 +181,7 @@ export default function HospitalAdministratorDashboard() {
   }, [formData.name]);
 
   const loadItems = async () => {
+    console.log("🟡 loadItems function called");
     const { data, error } = await inventoryService.getItems();
     if (error) {
       console.error("Error loading items:", error);
@@ -191,6 +192,7 @@ export default function HospitalAdministratorDashboard() {
   };
 
   const handleAddItem = async () => {
+    console.log("🟡 Add Item button clicked");
     if (!formData.name || !formData.description || !formData.quantity) return;
 
     const newItem = {
@@ -203,7 +205,7 @@ export default function HospitalAdministratorDashboard() {
       expiry_date: formData.expiry_date,
       supplier: formData.supplier,
       cost_per_unit: parseFloat(formData.cost_per_unit),
-      min_threshold: parseInt(formData.quantity) * 0.2, // Set default threshold
+      min_threshold: Math.round(parseInt(formData.quantity) * 0.2),
       created_at: new Date().toISOString(),
     };
 
@@ -456,9 +458,9 @@ export default function HospitalAdministratorDashboard() {
 
       {/* Alerts */}
       {lowStockItems > 0 && (
-        <Alert>
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
+        <Alert className="bg-red-100 border-red-300 text-red-900">
+          <AlertTriangle className="h-4 w-4 text-red-700" />
+          <AlertDescription className="text-red-900 font-medium">
             {lowStockItems} items are running low on stock and need immediate
             attention.
           </AlertDescription>

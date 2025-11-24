@@ -245,7 +245,7 @@ export default function SupplyChainOfficerDashboard() {
       expiry_date: formData.expiry_date,
       supplier: formData.supplier,
       cost_per_unit: parseFloat(formData.cost_per_unit),
-      min_threshold: parseInt(formData.min_threshold),
+      min_threshold: Math.round(parseInt(formData.quantity) * 0.2),
       created_at: new Date().toISOString(),
     };
 
@@ -534,11 +534,11 @@ export default function SupplyChainOfficerDashboard() {
 
       {/* Alerts */}
       {lowStockItems > 0 && (
-        <Alert>
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            {lowStockItems} items are below their minimum threshold and need
-            immediate restocking.
+        <Alert className="bg-red-100 border-red-300 text-red-900">
+          <AlertTriangle className="h-4 w-4 text-red-700" />
+          <AlertDescription className="text-red-900 font-medium">
+            {lowStockItems} items are running low on stock and need immediate
+            attention.
           </AlertDescription>
         </Alert>
       )}
@@ -665,7 +665,7 @@ export default function SupplyChainOfficerDashboard() {
                       <span className="text-muted-foreground">
                         {isGenerating
                           ? "Detecting category..."
-                          : "Category will auto-detect"}
+                          : "Auto-detect Category"}
                       </span>
                     )}
                   </div>
